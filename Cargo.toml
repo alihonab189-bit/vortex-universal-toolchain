@@ -1,0 +1,18 @@
+[package]
+name = "vortexc"
+version = "0.1.0"
+edition = "2021"
+description = "VORTEX Universal Toolchain — own language, lexer, parser, compiler (VIR), VM, CLI. Zero third-party crates."
+authors = ["alihonab189-bit"]
+
+[lib]
+name = "vortexc"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vortexc"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true

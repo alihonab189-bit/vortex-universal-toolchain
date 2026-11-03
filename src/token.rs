@@ -1,0 +1,97 @@
+//! Token সংজ্ঞা — সব ধরনের token এক জায়গায়।
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Tok {
+    // Literals
+    Int(i64),
+    Float(f64),
+    Str(String),
+    Ident(String),
+    // Keywords
+    Let,
+    Fn,
+    If,
+    Else,
+    While,
+    For,
+    In,
+    Return,
+    True,
+    False,
+    // Symbols
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+    Eq,
+    EqEq,
+    NotEq,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+    AndAnd,
+    OrOr,
+    Not,
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    Comma,
+    Semi,
+    DotDot,
+    Eof,
+}
+
+#[derive(Clone, Debug)]
+pub struct Token {
+    pub tok: Tok,
+    pub line: usize,
+    pub col: usize,
+}
+
+impl Token {
+    /// ত্রুটি-বার্তার জন্য token-এর বর্ণনা
+    pub fn describe(&self) -> String {
+        match &self.tok {
+            Tok::Int(_) => "সংখ্যা (number)".into(),
+            Tok::Float(_) => "দশমিক সংখ্যা (float)".into(),
+            Tok::Str(_) => "string".into(),
+            Tok::Ident(s) => format!("identifier '{}'", s),
+            Tok::Let => "'let'".into(),
+            Tok::Fn => "'fn'".into(),
+            Tok::If => "'if'".into(),
+            Tok::Else => "'else'".into(),
+            Tok::While => "'while'".into(),
+            Tok::For => "'for'".into(),
+            Tok::In => "'in'".into(),
+            Tok::Return => "'return'".into(),
+            Tok::True => "'true'".into(),
+            Tok::False => "'false'".into(),
+            Tok::Plus => "'+'".into(),
+            Tok::Minus => "'-'".into(),
+            Tok::Star => "'*'".into(),
+            Tok::Slash => "'/'".into(),
+            Tok::Percent => "'%'".into(),
+            Tok::Eq => "'='".into(),
+            Tok::EqEq => "'=='".into(),
+            Tok::NotEq => "'!='".into(),
+            Tok::Lt => "'<'".into(),
+            Tok::Gt => "'>'".into(),
+            Tok::Le => "'<='".into(),
+            Tok::Ge => "'>='".into(),
+            Tok::AndAnd => "'&&'".into(),
+            Tok::OrOr => "'||'".into(),
+            Tok::Not => "'!'".into(),
+            Tok::LParen => "'('".into(),
+            Tok::RParen => "')'".into(),
+            Tok::LBrace => "'{'".into(),
+            Tok::RBrace => "'}'".into(),
+            Tok::Comma => "','".into(),
+            Tok::Semi => "';'".into(),
+            Tok::DotDot => "'..'".into(),
+            Tok::Eof => "input-এর শেষ (end of input)".into(),
+        }
+    }
+}

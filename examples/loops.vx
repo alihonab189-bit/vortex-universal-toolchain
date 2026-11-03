@@ -1,0 +1,15 @@
+// VORTEX — loops & functions
+fn square(x) {
+    return x * x;
+}
+
+for i in 1..6 {
+    show(i + " × " + i + " = " + square(i));
+}
+
+let n = 3;
+while (n > 0) {
+    show("countdown " + n);
+    n = n - 1;
+}
+show("liftoff!");

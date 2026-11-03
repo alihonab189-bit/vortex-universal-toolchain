@@ -1,0 +1,13 @@
+// VORTEX — Fibonacci (recursion demo)
+fn fib(n) {
+    if (n < 2) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+let i = 0;
+while (i < 10) {
+    show("fib(" + i + ") = " + fib(i));
+    i = i + 1;
+}

@@ -1,0 +1,9 @@
+// VORTEX — strings & builtins
+let name = "VORTEX";
+let greeting = "নমস্কাৰ, " + name + "!";
+
+show(greeting);
+show(len(greeting));
+show(num("42") + 8);
+show(str(99) + " problems");
+show("সঁচা/মিথ্যা: " + (5 > 3));
