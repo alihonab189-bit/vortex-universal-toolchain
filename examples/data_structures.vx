@@ -1,0 +1,27 @@
+fn যোগ(x, y) { return x + y; }
+show(যোগ(২, ৩));
+let a = [১, ২, ৩];
+push(a, ৪);
+show(a);
+show(a[2]);
+show(a[-1]);
+let m = {"নাম": "ৰাম"};
+show(m["নাম"]);
+m["বয়স"] = ২৫;
+show(has(m, "বয়স"));
+show(keys(m));
+show(values(m));
+let মোট = ০;
+for i in ১..১১ { মোট = মোট + i; }
+show("যোগফল: " + মোট);
+for x in a {
+    if x == ২ { continue; }
+    show(x);
+}
+show(1.5 + 2);
+show(pow(2, 10));
+show(min(3, 7));
+show(len("অসমীয়া"));
+show(10 / 4);
+show([১,২] == [১,২]);
+show("abc" < "abd");

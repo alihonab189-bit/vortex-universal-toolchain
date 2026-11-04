@@ -6,8 +6,8 @@
 
 use std::collections::HashMap;
 
-use crate::ast::{Expr, Program, Stmt};
-use crate::keywords::lookup_builtin;
+use crate::ast::{Expr, ForIter, Program, Stmt};
+use crate::keywords::{lookup_builtin, method_builtin, Builtin};
 use crate::value::Value;
 use crate::vir::{Func, Instr, VProgram};
 
@@ -21,6 +21,15 @@ struct FnCtx {
     code: Vec<Instr>,
     scopes: Vec<HashMap<String, usize>>,
     nslots: usize,
+    /// চলমান লুপের stack — break/continue-এর jump patch করার জন্য
+    loops: Vec<LoopCtx>,
+}
+
+struct LoopCtx {
+    /// break-এর jump-গুলো লুপ শেষে patch হবে
+    break_patches: Vec<usize>,
+    /// continue-এর jump-গুলো
+    continue_patches: Vec<usize>,
 }
 
 impl FnCtx {
@@ -29,6 +38,7 @@ impl FnCtx {
             code: Vec::new(),
             scopes: Vec::new(),
             nslots: 0,
+            loops: Vec::new(),
         }
     }
 
@@ -87,6 +97,41 @@ impl FnCtx {
 
     fn last_is_ret(&self) -> bool {
         matches!(self.code.last(), Some(Instr::Ret))
+    }
+
+    fn emit_break(&mut self) -> Result<(), CompileError> {
+        if self.loops.is_empty() {
+            return Err(CompileError {
+                msg: "'break' লুপের বাইরে চলে না ('break' outside of a loop)".into(),
+            });
+        }
+        let at = self.emit(Instr::Jmp(0));
+        self.loops.last_mut().unwrap().break_patches.push(at);
+        Ok(())
+    }
+
+    fn emit_continue(&mut self) -> Result<(), CompileError> {
+        if self.loops.is_empty() {
+            return Err(CompileError {
+                msg: "'continue' লুপের বাইরে চলে না ('continue' outside of a loop)".into(),
+            });
+        }
+        let at = self.emit(Instr::Jmp(0));
+        self.loops.last_mut().unwrap().continue_patches.push(at);
+        Ok(())
+    }
+
+    /// লুপ শেষে সব break/continue jump ঠিক করে
+    fn close_loop(&mut self, continue_pos: usize) {
+        let end = self.code.len();
+        if let Some(l) = self.loops.pop() {
+            for at in l.break_patches {
+                self.patch(at, end);
+            }
+            for at in l.continue_patches {
+                self.patch(at, continue_pos);
+            }
+        }
     }
 }
 
@@ -215,6 +260,10 @@ fn compile_stmt(
         }
         Stmt::While { cond, body } => {
             let lstart = c.code.len();
+            c.loops.push(LoopCtx {
+                break_patches: Vec::new(),
+                continue_patches: Vec::new(),
+            });
             compile_expr(c, cond, ft)?;
             let jf = c.emit(Instr::JmpIfFalse(0));
             for s in body {
@@ -222,35 +271,81 @@ fn compile_stmt(
             }
             c.emit(Instr::Jmp(lstart));
             c.patch(jf, c.code.len());
+            // while-এ continue → শর্ত পুনরায় যাচাই (lstart)
+            c.close_loop(lstart);
         }
-        Stmt::For {
-            var,
-            from,
-            to,
-            body,
-        } => {
+        Stmt::For { var, iter, body } => {
             c.enter();
-            let islot = c.declare(var)?;
-            compile_expr(c, from, ft)?;
-            c.emit(Instr::Store(islot));
-            let eslot = c.fresh_slot();
-            compile_expr(c, to, ft)?;
-            c.emit(Instr::Store(eslot));
-            let lstart = c.code.len();
-            c.emit(Instr::Load(islot));
-            c.emit(Instr::Load(eslot));
-            c.emit(Instr::Lt);
-            let jf = c.emit(Instr::JmpIfFalse(0));
-            for s in body {
-                compile_stmt(c, s, ft)?;
+            match iter {
+                ForIter::Range(from, to) => {
+                    let islot = c.declare(var)?;
+                    compile_expr(c, from, ft)?;
+                    c.emit(Instr::Store(islot));
+                    let eslot = c.fresh_slot();
+                    compile_expr(c, to, ft)?;
+                    c.emit(Instr::Store(eslot));
+                    c.loops.push(LoopCtx {
+                        break_patches: Vec::new(),
+                        continue_patches: Vec::new(),
+                    });
+                    let lstart = c.code.len();
+                    c.emit(Instr::Load(islot));
+                    c.emit(Instr::Load(eslot));
+                    c.emit(Instr::Lt);
+                    let jf = c.emit(Instr::JmpIfFalse(0));
+                    for s in body {
+                        compile_stmt(c, s, ft)?;
+                    }
+                    // continue/increment এখানে: i = i + 1
+                    let cont = c.code.len();
+                    c.emit(Instr::Load(islot));
+                    c.emit(Instr::Const(Value::Int(1)));
+                    c.emit(Instr::Add);
+                    c.emit(Instr::Store(islot));
+                    c.emit(Instr::Jmp(lstart));
+                    c.patch(jf, c.code.len());
+                    c.close_loop(cont);
+                }
+                ForIter::Coll(cexpr) => {
+                    // collslot = items(coll)  — map হলে keys, string হলে অক্ষর-তালিকা
+                    let collslot = c.fresh_slot();
+                    compile_expr(c, cexpr, ft)?;
+                    c.emit(Instr::CallB(Builtin::Iter, 1));
+                    c.emit(Instr::Store(collslot));
+                    let islot = c.declare(var)?;
+                    let idxslot = c.fresh_slot();
+                    c.emit(Instr::Const(Value::Int(0)));
+                    c.emit(Instr::Store(idxslot));
+                    c.loops.push(LoopCtx {
+                        break_patches: Vec::new(),
+                        continue_patches: Vec::new(),
+                    });
+                    // lstart: if idx < len(coll)
+                    let lstart = c.code.len();
+                    c.emit(Instr::Load(idxslot));
+                    c.emit(Instr::Load(collslot));
+                    c.emit(Instr::CallB(Builtin::Len, 1));
+                    c.emit(Instr::Lt);
+                    let jf = c.emit(Instr::JmpIfFalse(0));
+                    // var = coll[idx]
+                    c.emit(Instr::Load(collslot));
+                    c.emit(Instr::Load(idxslot));
+                    c.emit(Instr::IndexGet);
+                    c.emit(Instr::Store(islot));
+                    for s in body {
+                        compile_stmt(c, s, ft)?;
+                    }
+                    // continue/increment: idx = idx + 1
+                    let cont = c.code.len();
+                    c.emit(Instr::Load(idxslot));
+                    c.emit(Instr::Const(Value::Int(1)));
+                    c.emit(Instr::Add);
+                    c.emit(Instr::Store(idxslot));
+                    c.emit(Instr::Jmp(lstart));
+                    c.patch(jf, c.code.len());
+                    c.close_loop(cont);
+                }
             }
-            // i = i + 1
-            c.emit(Instr::Load(islot));
-            c.emit(Instr::Const(Value::Int(1)));
-            c.emit(Instr::Add);
-            c.emit(Instr::Store(islot));
-            c.emit(Instr::Jmp(lstart));
-            c.patch(jf, c.code.len());
             c.exit();
         }
         Stmt::FnDecl { name, .. } => {
@@ -269,6 +364,14 @@ fn compile_stmt(
                 }
             }
             c.emit(Instr::Ret);
+        }
+        Stmt::Break => c.emit_break()?,
+        Stmt::Continue => c.emit_continue()?,
+        Stmt::IndexAssign(obj, idx, val, _) => {
+            compile_expr(c, obj, ft)?;
+            compile_expr(c, idx, ft)?;
+            compile_expr(c, val, ft)?;
+            c.emit(Instr::IndexSet);
         }
         Stmt::ExprStmt(e) => {
             compile_expr(c, e, ft)?;
@@ -363,7 +466,13 @@ fn compile_expr(c: &mut FnCtx, e: &Expr, ft: &FnTable) -> Result<(), CompileErro
                 }
                 c.emit(Instr::CallFn(fidx, argc));
             } else if let Some(b) = lookup_builtin(name) {
-                if argc != b.arity() {
+                // show() variadic — একাধিক argument স্পেস দিয়ে জোড়া হয়
+                let ok_arity = if matches!(b, Builtin::Show) {
+                    argc >= 1
+                } else {
+                    argc == b.arity()
+                };
+                if !ok_arity {
                     return Err(CompileError {
                         msg: format!(
                             "built-in '{}'-এ {}টি argument দরকার, {}টি দেওয়া হয়েছে",
@@ -381,6 +490,55 @@ fn compile_expr(c: &mut FnCtx, e: &Expr, ft: &FnTable) -> Result<(), CompileErro
                 return Err(CompileError {
                     msg: format!("অজানা ফাংশন '{}' (unknown function)", name),
                 });
+            }
+        }
+        Expr::Array(items) => {
+            let n = items.len();
+            for it in items {
+                compile_expr(c, it, ft)?;
+            }
+            c.emit(Instr::MakeArr(n));
+        }
+        Expr::MapLit(pairs) => {
+            let n = pairs.len();
+            for (k, v) in pairs {
+                compile_expr(c, k, ft)?;
+                compile_expr(c, v, ft)?;
+            }
+            c.emit(Instr::MakeMap(n));
+        }
+        Expr::Index(obj, idx, _) => {
+            compile_expr(c, obj, ft)?;
+            compile_expr(c, idx, ft)?;
+            c.emit(Instr::IndexGet);
+        }
+        Expr::Method(recv, name, args, _) => {
+            match method_builtin(name) {
+                Some((b, arity)) => {
+                    if args.len() + 1 != arity {
+                        return Err(CompileError {
+                            msg: format!(
+                                "method '{}'-এ {}টি argument দরকার, {}টি দেওয়া হয়েছে ('.{}' expects {} arguments, got {})",
+                                name,
+                                arity - 1,
+                                args.len(),
+                                name,
+                                arity - 1,
+                                args.len()
+                            ),
+                        });
+                    }
+                    compile_expr(c, recv, ft)?;
+                    for a in args {
+                        compile_expr(c, a, ft)?;
+                    }
+                    c.emit(Instr::CallB(b, arity));
+                }
+                None => {
+                    return Err(CompileError {
+                        msg: format!("অজানা method '{}' (unknown method)", name),
+                    })
+                }
             }
         }
     }

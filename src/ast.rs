@@ -13,12 +13,22 @@ pub enum Expr {
     Binary(String, Box<Expr>, Box<Expr>),
     /// ফাংশন কল: নাম, arguments, source line
     Call(String, Vec<Expr>, u32),
+    /// Array literal: [1, 2, 3]
+    Array(Vec<Expr>),
+    /// Map literal: {"নাম": "ৰাম"}
+    MapLit(Vec<(Expr, Expr)>),
+    /// Index access: a[0], m["key"], s[2]
+    Index(Box<Expr>, Box<Expr>, u32),
+    /// Method call: recv.name(args) — compiler built-in-লৈ নামায়
+    Method(Box<Expr>, String, Vec<Expr>, u32),
 }
 
 #[derive(Clone, Debug)]
 pub enum Stmt {
     Let(String, Expr),
     Assign(String, Expr, u32),
+    /// obj[idx] = val
+    IndexAssign(Box<Expr>, Box<Expr>, Box<Expr>, u32),
     If {
         cond: Expr,
         then_b: Vec<Stmt>,
@@ -28,11 +38,10 @@ pub enum Stmt {
         cond: Expr,
         body: Vec<Stmt>,
     },
-    /// for var in from..to { body }
+    /// for var in from..to { body }   বা   for var in coll { body }
     For {
         var: String,
-        from: Expr,
-        to: Expr,
+        iter: ForIter,
         body: Vec<Stmt>,
     },
     FnDecl {
@@ -41,7 +50,16 @@ pub enum Stmt {
         body: Vec<Stmt>,
     },
     Return(Option<Expr>),
+    Break,
+    Continue,
     ExprStmt(Expr),
+}
+
+/// for-লুপের iterator: সংখ্যা-পরিসর বা সংগ্রহ (array/string/map-keys)
+#[derive(Clone, Debug)]
+pub enum ForIter {
+    Range(Box<Expr>, Box<Expr>),
+    Coll(Box<Expr>),
 }
 
 #[derive(Clone, Debug)]
@@ -88,6 +106,15 @@ fn dump_stmt(st: &Stmt, level: usize, out: &mut String) {
         Stmt::Assign(name, e, _) => {
             out.push_str(&format!("{}Assign {} = {}\n", p, name, expr_str(e)));
         }
+        Stmt::IndexAssign(obj, idx, val, _) => {
+            out.push_str(&format!(
+                "{}IndexAssign {}[{}] = {}\n",
+                p,
+                expr_str(obj),
+                expr_str(idx),
+                expr_str(val)
+            ));
+        }
         Stmt::If {
             cond,
             then_b,
@@ -110,19 +137,22 @@ fn dump_stmt(st: &Stmt, level: usize, out: &mut String) {
                 dump_stmt(s, level + 1, out);
             }
         }
-        Stmt::For {
-            var,
-            from,
-            to,
-            body,
-        } => {
-            out.push_str(&format!(
-                "{}For {} in {}..{}\n",
-                p,
-                var,
-                expr_str(from),
-                expr_str(to)
-            ));
+        Stmt::For { var, iter, body } => {
+            match iter {
+                ForIter::Range(from, to) => out.push_str(&format!(
+                    "{}For {} in {}..{}\n",
+                    p,
+                    var,
+                    expr_str(from),
+                    expr_str(to)
+                )),
+                ForIter::Coll(c) => out.push_str(&format!(
+                    "{}For {} in {}\n",
+                    p,
+                    var,
+                    expr_str(c)
+                )),
+            }
             for s in body {
                 dump_stmt(s, level + 1, out);
             }
@@ -140,6 +170,8 @@ fn dump_stmt(st: &Stmt, level: usize, out: &mut String) {
                 e.as_ref().map(expr_str).unwrap_or_else(|| "unit".into())
             ));
         }
+        Stmt::Break => out.push_str(&format!("{}Break\n", p)),
+        Stmt::Continue => out.push_str(&format!("{}Continue\n", p)),
         Stmt::ExprStmt(e) => {
             out.push_str(&format!("{}Expr {}\n", p, expr_str(e)));
         }
@@ -157,6 +189,25 @@ fn expr_str(e: &Expr) -> String {
         Expr::Binary(op, l, r) => format!("({} {} {})", expr_str(l), op, expr_str(r)),
         Expr::Call(name, args, _) => format!(
             "{}({})",
+            name,
+            args.iter().map(expr_str).collect::<Vec<_>>().join(", ")
+        ),
+        Expr::Array(items) => format!(
+            "[{}]",
+            items.iter().map(expr_str).collect::<Vec<_>>().join(", ")
+        ),
+        Expr::MapLit(pairs) => format!(
+            "{{{}}}",
+            pairs
+                .iter()
+                .map(|(k, v)| format!("{}: {}", expr_str(k), expr_str(v)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        Expr::Index(o, i, _) => format!("{}[{}]", expr_str(o), expr_str(i)),
+        Expr::Method(recv, name, args, _) => format!(
+            "{}.{}({})",
+            expr_str(recv),
             name,
             args.iter().map(expr_str).collect::<Vec<_>>().join(", ")
         ),

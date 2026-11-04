@@ -13,7 +13,7 @@
 //!   expr     = or_expr ; সবচেয়ে কম precedence: ||, তারপর &&, তারপর comparison,
 //!              additive, multiplicative, unary, primary
 
-use crate::ast::{Expr, Program, Stmt};
+use crate::ast::{Expr, ForIter, Program, Stmt};
 use crate::lexer::lex;
 use crate::token::{Tok, Token};
 
@@ -145,16 +145,26 @@ impl Parser {
                 self.next();
                 let var = self.ident()?;
                 self.expect(&Tok::In, "'in' (ভিতৰত/মধ্যে)")?;
-                let from = self.expr()?;
-                self.expect(&Tok::DotDot, "'..'")?;
-                let to = self.expr()?;
+                let first = self.expr()?;
+                let iter = if self.at(&Tok::DotDot) {
+                    self.next();
+                    let to = self.expr()?;
+                    ForIter::Range(Box::new(first), Box::new(to))
+                } else {
+                    ForIter::Coll(Box::new(first))
+                };
                 let body = self.block()?;
-                Ok(Stmt::For {
-                    var,
-                    from,
-                    to,
-                    body,
-                })
+                Ok(Stmt::For { var, iter, body })
+            }
+            Tok::Break => {
+                self.next();
+                self.expect(&Tok::Semi, "';'")?;
+                Ok(Stmt::Break)
+            }
+            Tok::Continue => {
+                self.next();
+                self.expect(&Tok::Semi, "';'")?;
+                Ok(Stmt::Continue)
             }
             Tok::Return => {
                 self.next();
@@ -173,10 +183,30 @@ impl Parser {
                 self.expect(&Tok::Semi, "';'")?;
                 Ok(Stmt::Assign(name, e, tk.line as u32))
             }
+            // a[0] = v / m["ক"] = v — postfix expression দিয়ে শুরু হয় '=' পেলে
             _ => {
+                let start = self.i;
                 let e = self.expr()?;
-                self.expect(&Tok::Semi, "';'")?;
-                Ok(Stmt::ExprStmt(e))
+                if self.at(&Tok::Eq) {
+                    match e {
+                        Expr::Index(obj, idx, line) => {
+                            self.next(); // '='
+                            let val = self.expr()?;
+                            self.expect(&Tok::Semi, "';'")?;
+                            Ok(Stmt::IndexAssign(obj, idx, Box::new(val), line))
+                        }
+                        _ => {
+                            // রোলব্যাক নেই — ভুল বার্তা পরিষ্কার দিই
+                            let _ = start;
+                            Err(self.err(
+                                "এখানে '=' চলে না — শুধু variable বা index-এ assign করা যায় (cannot assign to this expression)",
+                            ))
+                        }
+                    }
+                } else {
+                    self.expect(&Tok::Semi, "';'")?;
+                    Ok(Stmt::ExprStmt(e))
+                }
             }
         }
     }
@@ -311,6 +341,53 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr, ParseError> {
+        let mut e = self.primary_base()?;
+        // postfix chain: a[0], m["key"], s.upper(), a.push(x) — চেইন করা যায়
+        loop {
+            if self.at(&Tok::LBracket) {
+                self.next();
+                let idx = self.expr()?;
+                self.expect(&Tok::RBracket, "']'")?;
+                e = Expr::Index(Box::new(e), Box::new(idx), 0);
+            } else if self.at(&Tok::Dot) {
+                let tk = self.peek().clone();
+                self.next();
+                let name = match &self.peek().tok {
+                    Tok::Ident(s) => s.clone(),
+                    other => {
+                        return Err(ParseError {
+                            msg: format!(
+                                "'.'-এর পরে method-এর নাম দরকার (expected method name after '.'), পাওয়া গেছে {}",
+                                Token { tok: other.clone(), line: tk.line, col: tk.col }.describe()
+                            ),
+                            line: tk.line,
+                            col: tk.col,
+                        })
+                    }
+                };
+                self.next();
+                self.expect(&Tok::LParen, "'('")?;
+                let mut args = Vec::new();
+                if !self.at(&Tok::RParen) {
+                    loop {
+                        args.push(self.expr()?);
+                        if self.at(&Tok::Comma) {
+                            self.next();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                self.expect(&Tok::RParen, "')'")?;
+                e = Expr::Method(Box::new(e), name, args, tk.line as u32);
+            } else {
+                break;
+            }
+        }
+        Ok(e)
+    }
+
+    fn primary_base(&mut self) -> Result<Expr, ParseError> {
         let tk = self.peek().clone();
         match tk.tok {
             Tok::Int(v) => {
@@ -338,6 +415,41 @@ impl Parser {
                 let e = self.expr()?;
                 self.expect(&Tok::RParen, "')'")?;
                 Ok(e)
+            }
+            Tok::LBracket => {
+                self.next();
+                let mut items = Vec::new();
+                if !self.at(&Tok::RBracket) {
+                    loop {
+                        items.push(self.expr()?);
+                        if self.at(&Tok::Comma) {
+                            self.next();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                self.expect(&Tok::RBracket, "']'")?;
+                Ok(Expr::Array(items))
+            }
+            Tok::LBrace => {
+                self.next();
+                let mut pairs = Vec::new();
+                if !self.at(&Tok::RBrace) {
+                    loop {
+                        let k = self.expr()?;
+                        self.expect(&Tok::Colon, "':'")?;
+                        let v = self.expr()?;
+                        pairs.push((k, v));
+                        if self.at(&Tok::Comma) {
+                            self.next();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                self.expect(&Tok::RBrace, "'}'")?;
+                Ok(Expr::MapLit(pairs))
             }
             Tok::Ident(name) => {
                 if matches!(&self.peek2().tok, Tok::LParen) {

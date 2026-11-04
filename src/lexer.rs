@@ -150,25 +150,34 @@ pub fn lex(src: &str) -> Result<Vec<Token>, LexError> {
             Some(c0) => c0,
         };
 
-        // সংখ্যা (শুধু ASCII digit; বাংলা digit identifier-এর অংশ হতে পারে কিন্তু literal নয়)
-        if ch.is_ascii_digit() {
+        // সংখ্যা — ASCII ও ভারতীয় অংক ০-৯ (U+09E6–U+09EF)
+        if ch.is_ascii_digit() || ('\u{09E6}'..='\u{09EF}').contains(&ch) {
+            let dv = |c: char| -> u32 {
+                if c.is_ascii_digit() {
+                    c as u32 - '0' as u32
+                } else {
+                    c as u32 - '\u{09E6}' as u32
+                }
+            };
             let mut s = String::new();
             while let Some(c0) = lx.peek() {
-                if c0.is_ascii_digit() {
-                    s.push(c0);
+                if c0.is_ascii_digit() || ('\u{09E6}'..='\u{09EF}').contains(&c0) {
+                    s.push(char::from_u32('0' as u32 + dv(c0)).unwrap());
                     lx.bump();
                 } else {
                     break;
                 }
             }
             let mut is_float = false;
-            if lx.peek() == Some('.') && matches!(lx.peek2(), Some(d) if d.is_ascii_digit()) {
+            if lx.peek() == Some('.')
+                && matches!(lx.peek2(), Some(d) if d.is_ascii_digit() || ('\u{09E6}'..='\u{09EF}').contains(&d))
+            {
                 is_float = true;
                 s.push('.');
                 lx.bump();
                 while let Some(c0) = lx.peek() {
-                    if c0.is_ascii_digit() {
-                        s.push(c0);
+                    if c0.is_ascii_digit() || ('\u{09E6}'..='\u{09EF}').contains(&c0) {
+                        s.push(char::from_u32('0' as u32 + dv(c0)).unwrap());
                         lx.bump();
                     } else {
                         break;
@@ -289,6 +298,10 @@ pub fn lex(src: &str) -> Result<Vec<Token>, LexError> {
             '}' => Tok::RBrace,
             ',' => Tok::Comma,
             ';' => Tok::Semi,
+            '[' => Tok::LBracket,
+            ']' => Tok::RBracket,
+            ':' => Tok::Colon,
+            '.' => Tok::Dot,
             _ => {
                 return Err(LexError {
                     msg: format!("অপ্রত্যাশিত অক্ষর (unexpected character): '{}'", ch),

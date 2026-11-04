@@ -1,4 +1,6 @@
 /target
 *.vxc
+*.wasm
+.vortex/
 Cargo.lock.bak
 .DS_Store

@@ -1,8 +1,8 @@
 [package]
 name = "vortexc"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "VORTEX Universal Toolchain — own language, lexer, parser, compiler (VIR), VM, CLI. Zero third-party crates."
+description = "VORTEX Universal Toolchain — own language, compiler (VIR), VM, WASM backend, AI engine, package manager, debugger, formatter, linter, test runner. Zero third-party crates."
 authors = ["alihonab189-bit"]
 
 [lib]

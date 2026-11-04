@@ -32,6 +32,14 @@ pub enum Instr {
     JmpIfTrue(usize),
     CallFn(usize, usize),   // (function index, argument count)
     CallB(Builtin, usize),  // (built-in, argument count)
+    /// [..., obj, idx] → [..., value] — array/string/map index read
+    IndexGet,
+    /// [..., obj, idx, val] → [...] — array/map index write
+    IndexSet,
+    /// স্ট্যাকের উপরের n মান পপ করে array বানায় (উল্লেখ্য: লেখার ক্রম উল্টো)
+    MakeArr(usize),
+    /// উপরের 2n মান (k,v জোড়া) পপ করে map বানায়
+    MakeMap(usize),
     Ret,
 }
 
@@ -78,6 +86,11 @@ pub fn unescape(s: &str) -> String {
     out
 }
 
+/// একটি instruction-এর টেক্সট রূপ (debugger-এর জন্য public)
+pub fn write_instr_text(i: &Instr) -> String {
+    instr_line(i)
+}
+
 fn instr_line(i: &Instr) -> String {
     match i {
         Instr::Const(v) => match v {
@@ -86,6 +99,8 @@ fn instr_line(i: &Instr) -> String {
             Value::Str(s) => format!("CONST S {}", escape(s)),
             Value::Bool(b) => format!("CONST B {}", b),
             Value::Unit => "CONST U".into(),
+            // array/map runtime-এ MakeArr/MakeMap দিয়ে তৈরি হয় — constant হিসেবে আসে না
+            Value::Arr(_) | Value::Map(_) => unreachable!("container constant in VIR"),
         },
         Instr::Load(s) => format!("LD {}", s),
         Instr::Store(s) => format!("ST {}", s),
@@ -109,6 +124,10 @@ fn instr_line(i: &Instr) -> String {
         Instr::JmpIfTrue(t) => format!("JPT {}", t),
         Instr::CallFn(f, a) => format!("CALLF {} {}", f, a),
         Instr::CallB(b, a) => format!("CALLB {} {}", b.name(), a),
+        Instr::IndexGet => "IDXGET".into(),
+        Instr::IndexSet => "IDXSET".into(),
+        Instr::MakeArr(n) => format!("ARR {}", n),
+        Instr::MakeMap(n) => format!("MAP {}", n),
         Instr::Ret => "RET".into(),
     }
 }
@@ -236,6 +255,10 @@ fn parse_instr(op: &str, rest: &str) -> Result<Instr, String> {
             let b = lookup_builtin(name).ok_or_else(bad)?;
             Ok(Instr::CallB(b, parse_usize(argc)?))
         }
+        "IDXGET" => Ok(Instr::IndexGet),
+        "IDXSET" => Ok(Instr::IndexSet),
+        "ARR" => Ok(Instr::MakeArr(parse_usize(rest)?)),
+        "MAP" => Ok(Instr::MakeMap(parse_usize(rest)?)),
         "RET" => Ok(Instr::Ret),
         _ => Err(bad()),
     }

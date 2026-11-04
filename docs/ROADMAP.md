@@ -24,11 +24,15 @@
 
 ## Phase 1 — ভাষা পূর্ণতা (v0.2–v0.4)
 
-ক্যাটাগরি #1-এর বাকি অংশ:
+ক্যাটাগরি #1-এর বাকি অংশ — **v0.2.0-তে যা পূর্ণ হলো:** Array, Map,
+for-in (array/string/map), break/continue, string methods, math builtins,
+ভারতীয় অংক, variadic show, deep equality, step-machine VM ✅
+
+**এখনো বাকি:**
 
 - **Static type system** — `let x: int = 5`; compile-time type checking
-- **Arrays, Lists, Maps, Sets** + literal syntax
-- **String methods**, **break/continue**, **try/catch error handling**
+- **Sets** + literal syntax
+- **try/catch error handling**
 - **Modules & namespaces** (`use math;`), **imports**
 - **Structs, classes, inheritance, polymorphism, encapsulation**
 - **Generics, interfaces, annotations, pattern matching**
@@ -38,10 +42,11 @@
 
 ## Phase 2 — নিজস্ব Web Backend + Editor (v0.5–v0.7)
 
-ক্যাটাগরি **#3 Code Editor**, **#9**-এর WASM অংশ:
+ক্যাটাগরি **#3 Code Editor**, **#9**-এর WASM অংশ — **v0.2.0-তে ভিত্তি পড়ল:**
+নিজস্ব WASM binary encoder (হাতে লেখা, Node.js-এ যাচাইকৃত ✅) আর
+নিজস্ব playground পেজ ✅ — বাকি:
 
-- **নিজস্ব WASM emitter** — VIR → WebAssembly (LLVM ছাড়াই, নিজে হাতে)
-- **Browser playground** — VORTEX সরাসরি browser-এ চলবে
+- **Browser-এ compiler** — নিজস্ব compiler নিজেই WASM-এ compile হয়ে browser-এ চলবে
 - **নিজস্ব web editor** — vanilla JS/WASM-এ: syntax highlighting, auto-complete,
   error marker, minimap — কোনো Monaco/CodeMirror ছাড়া
 - Language Server Protocol (VS Code-এও VORTEX চলবে — এটা সুবিধা, dependency নয়)
@@ -74,10 +79,12 @@
 ক্যাটাগরি **#2 Natural Language Programming**, **#17 Cloud**,
 **#18 Security**, **#12 Package Manager**, **#14 Testing**, **#15 Database**:
 
-- **AI Engine** — নিজের ভাষায় (অসমীয়া/বাংলা/English) বললেই VORTEX কোড;
-  LLM API + নিজস্ব compiler দিয়ে validation
+- **AI Engine** — ✅ v0.2.0: নিজস্ব rule-based intent engine (তিন ভাষায়,
+  ১২ intent, explain সহ) — কোনো external API ছাড়াই কাজ করছে; এর পরের
+  ধাপ নিজস্ব neural স্তর
 - Voice-to-code, code explanation, auto bug fix
-- **নিজস্ব package manager** — registry, versioning, dependency graph, signing
+- **নিজস্ব package manager** — ✅ v0.2.0: নিজস্ব manifest + .vpa archive +
+  নিজস্ব CRC32 + topo-sort resolver (local); বাকি: নিজস্ব registry server, signing
 - **Cloud build system** — distributed workers, build queue, artifact storage
 - **Security engine** — source encryption, binary signing, license validation,
   tamper detection, vulnerability scanner

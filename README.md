@@ -4,25 +4,31 @@
 
 # VORTEX UNIVERSAL TOOLCHAIN 🌀
 
-> **ভাষা, কম্পাইলার, VIR, VM, CLI — সব নিজের।**
+> **ভাষা, কম্পাইলার, VIR, VM, WASM backend, AI engine, package manager,
+> debugger, formatter, linter, test runner — সব নিজের।**
 > একটিও third-party crate নেই — পুরো টুলচেইন ১০০% Rust std দিয়ে শূন্য থেকে বানানো।
 
-**বর্তমান সংস্করণ: v0.1.0 — Language Engine MVP (কাজ করছে ✅)**
+**বর্তমান সংস্করণ: v0.2.0 — Expansion Release (৮টি সাবসিস্টেম কাজ করছে ✅)**
 
 ---
 
 ## ⚡ এই মুহূর্তে যা কাজ করে
 
-- **নিজস্ব ভাষা VORTEX** — English, অসমীয়া (Assamese) ও বাংলা (Bengali) keyword একসাথে চলে
-- **Lexer** — Unicode identifier (ৰ, ৱ, matra/hasanta সহ), string escape, line/block comment
-- **Recursive-descent Parser** → AST
-- **Compiler** → **VIR** (Vortex Intermediate Representation) — stack-based bytecode
-- **VIR serializer** — compile করে `.vxc` artifact, পরে সরাসরি চালানো যায়
-- **VORTEX VM** — call frames, slot-based locals, 10,000-depth call stack, step limit
-- **Short-circuit `&&` / `||`**, recursion, mutual recursion, else-if chain
-- **Int + Float অ্যারিথমেটিক**, string concat (`"মোট: " + 1000`), comparison, logical ops
-- **CLI**: `run` `ir` `ast` `tokens` `build` `exec` `repl` `keywords`
-- **২৮টি টেস্ট** সব সবুজ ✅ + GitHub Actions CI
+| সাবসিস্টেম | বিবরণ | অবস্থা |
+|---|---|---|
+| **ভাষা VORTEX** | English + অসমীয়া + বাংলা keyword, ভারতীয় অংক (`৪২`) | ✅ |
+| **Array & Map** | literal, index (ঋণাত্মক সহ), assign, insertion-order map | ✅ |
+| **নিজস্ব Compiler → VIR** | stack bytecode + `.vxc` artifact | ✅ |
+| **নিজস্ব VM** | call frames, step-machine API, 10k depth | ✅ |
+| **নিজস্ব WASM backend** | AST → WebAssembly binary — হাতে লেখা encoder, LLVM ছাড়া | ✅ Node.js-এ যাচাইকৃত |
+| **AI Engine** | অসমীয়া/বাংলা/English বাক্য → কোড + `explain` — কোনো API নেই | ✅ |
+| **Package Manager** | নিজস্ব `.vpa` archive + নিজস্ব CRC32 + topo-sort resolver | ✅ |
+| **Debugger** | VIR-level step/breakpoint/stack/locals | ✅ |
+| **Formatter / Linter / Test runner** | `fmt` `lint` (L001–L006) `test` | ✅ |
+| **CLI** | run ir ast tokens build exec repl keywords wasm ai explain pkg debug fmt lint test | ✅ |
+| **টেস্ট** | ৬৪টি টেস্ট + GitHub Actions CI | ✅ |
+
+দরকার শুধু Rust (edition 2021)। অন্য কিছু নয়।
 
 ## 🚀 Build ও Run
 
@@ -31,7 +37,14 @@ cargo build --release
 cargo run --release -- run examples/hello.vx
 ```
 
-দরকার শুধু Rust (edition 2021)। অন্য কিছু নয়।
+সব শক্তি একবারে দেখতে:
+
+```bash
+cargo run --release -- run examples/data_structures.vx    # array+map+for-in+methods
+cargo run --release -- ai "১ থেকে ১০ পর্যন্ত যোগফল দেখাও" --run
+cargo run --release -- wasm examples/data_structures.vx    # নিজস্ব WebAssembly!
+cargo run --release -- test tests/sample.vx                # (sample ফাইলে test_* থাকলে)
+```
 
 ## 🌐 তিন ভাষায় একই ভাষা — এটাই VORTEX-এর পরিচয়
 
@@ -40,11 +53,6 @@ cargo run --release -- run examples/hello.vx
 ```vortex
 show("Hello, VORTEX!");
 show("নমস্কাৰ, পৃথিৱী!");
-```
-
-```
-Hello, VORTEX!
-নমস্কাৰ, পৃথিৱী!
 ```
 
 **অসমীয়া keywords** (`examples/assamese_hello.vx`):
@@ -62,20 +70,6 @@ Hello, VORTEX!
 লুপ i ভিতৰত 1..4 {
     দেখুৱাওক("ঘূৰণ " + i);
 }
-
-কাম যোগফল(a, b) {
-    দিয়ক a + b;
-}
-
-দেখুৱাওক("১০ + ২০ = " + যোগফল(10, 20));
-```
-
-```
-অসম — ভোট দিব পাৰে
-ঘূৰণ 1
-ঘূৰণ 2
-ঘূৰণ 3
-১০ + ২০ = 30
 ```
 
 **বাংলা keywords** (`examples/bengali_demo.vx`):
@@ -92,149 +86,108 @@ Hello, VORTEX!
 }
 ```
 
-```
-মোট: 1000 — বেশি!
-ধাপ 1
-ধাপ 2
-ধাপ 3
-```
-
-## 📖 ভাষার ঝলক
+## 📖 ভাষার ঝলক (v0.2)
 
 ```vortex
-// recursion — fib(10)
-fn fib(n) {
-    if (n < 2) { return n; }
-    return fib(n - 1) + fib(n - 2);
+// Array — ঋণাত্মক index সহ
+let a = [১০, ২০, ৩০];
+push(a, ৪০);
+show(a[0] + a[-1]);          // 50
+
+// Map — insertion-order
+let m = {"নাম": "ৰাম", "বয়স": ২৫};
+m["শহৰ"] = "গুৱাহাটী";
+show(m["নাম"]);              // ৰাম
+show(keys(m));               // [নাম, বয়স, শহৰ]
+
+// for-in — array/string/map সব জায়গায়
+for x in a {
+    if x == ২০ { continue; }
+    if x > ৩৫ { break; }
+    show(x);
 }
-show(fib(10));        // 55
+for c in "অসমীয়া" { show(c); }
 
-// string + সংখ্যা সরাসরি জোড়া লাগে
-show("fib(7) = " + fib(7));   // fib(7) = 13
+// String methods
+show("hello".upper());           // HELLO
+show("a,b,c".split(","));        // [a, b, c]
+show("নমস্কাৰ".sub(0, 3));       // নমস
 
-// for, while, else-if — সব আছে
-for i in 1..6 { show(i); }
-let n = 3;
-while (n > 0) { show("countdown " + n); n = n - 1; }
+// গণিত
+show(pow(2, ১০));                // 1024
 ```
 
-সম্পূর্ণ spec: [`docs/SPEC.md`](docs/SPEC.md) • keyword টেবিল দেখতে: `vortexc keywords`
+## 🌍 নিজস্ব WebAssembly backend
 
-## 🏗️ Architecture
+`vortexc wasm file.vx` — হাতে লেখা binary encoder দিয়ে `.wasm` বানায়
+(LLVM/binaryen কিছুই নেই)। Node.js-এ চালানো:
 
-```
-            examples/hello.vx
-                   │
-                   ▼
-        ┌─────────────────────┐
-        │       LEXER         │  character → token
-        └──────────┬──────────┘
-                   ▼
-        ┌─────────────────────┐
-        │  PARSER (recursive- │  token → AST
-        │      descent)       │
-        └──────────┬──────────┘
-                   ▼
-        ┌─────────────────────┐
-        │      COMPILER       │  AST → VIR bytecode
-        │  (scope + slot      │  (compile-time-এ undefined var/
-        │   allocation)       │   unknown fn / arity error ধরা পড়ে)
-        └──────────┬──────────┘
-                   ▼
-        ┌─────────────────────┐
-        │   VIR (.vxc ফাইল)   │  টেক্সট ফরম্যাটে serialize
-        └──────────┬──────────┘
-                   ▼
-        ┌─────────────────────┐
-        │    VORTEX VM        │  stack machine + call frames
-        └─────────────────────┘
+```bash
+cargo run --release -- wasm examples/data_structures.vx
+node -e "WebAssembly.instantiate(require('fs').readFileSync('examples/data_structures.wasm'),{})
+  .then(async ({instance}) => {
+    instance.exports.vortex_main();
+    const p = Number(instance.exports.vortex_output());
+    const m = new DataView(instance.exports.memory.buffer);
+    const len = m.getInt32(p, true);
+    console.log(new TextDecoder().decode(new Uint8Array(instance.exports.memory.buffer, p+8, len)));
+  });"
 ```
 
-`vortexc ir` দিয়ে VIR চোখে দেখা যায়:
+বিস্তারিত: [`docs/WASM.md`](docs/WASM.md) • নিজস্ব playground:
+[`playground/index.html`](playground/index.html)
 
-```vir
-# VORTEX VIR v1
-FUNC main 0 0
-CONST S Hello, VORTEX!
-CALLB show 1
-POP
-CONST S নমস্কাৰ, পৃথিৱী!
-CALLB show 1
-POP
-CONST U
-RET
+## 🤖 AI Engine (নিজস্ব, কোনো API নেই)
+
+```bash
+cargo run --release -- ai "১ থেকে ১০ পর্যন্ত যোগফল দেখাও" --run
+cargo run --release -- ai "৭ এর নামতা" --run
+cargo run --release -- explain examples/loops.vx
 ```
 
-## 🛠️ CLI কমান্ড
+বাক্যের লিপি চিনে সেই ভাষাতেই কোড বানায়। বিস্তারিত: [`docs/AI.md`](docs/AI.md)
 
-| কমান্ড | কাজ |
-|---|---|
-| `vortexc run file.vx` | প্রোগ্রাম চালাও |
-| `vortexc ir file.vx` | VIR bytecode দেখাও |
-| `vortexc ast file.vx` | AST দেখাও |
-| `vortexc tokens file.vx` | token list দেখাও |
-| `vortexc build file.vx -o out.vxc` | VIR artifact বানাও |
-| `vortexc exec out.vxc` | artifact সরাসরি চালাও |
-| `vortexc repl` | interactive REPL (let/fn persist হয়) |
-| `vortexc keywords` | সব keyword ও built-in টেবিল |
+## 📦 Package Manager (vpm)
 
-REPL-এ লাইভ:
-
-```
-VORTEX> 1 + 2
-= 3
-VORTEX> ধৰো x = 40
-✓ x
-VORTEX> x * 2
-= 80
-VORTEX> fn double(n) { দিয়ক n * 2; }
-✓ double
-VORTEX> double(21)
-= 42
+```bash
+vortexc pkg init mypkg && vortexc pkg build && vortexc pkg pack
+vortexc pkg install mypkg-0.1.0.vpa && vortexc pkg list && vortexc pkg tree
 ```
 
-## 🗺️ Roadmap — এক নজরে
+নিজস্ব archive ফরম্যাট `.vpa` + নিজস্ব CRC32। বিস্তারিত:
+[`docs/PACKAGE_MANAGER.md`](docs/PACKAGE_MANAGER.md)
 
-পুরো ৩২-ক্যাটাগরি পরিকল্পনা: [`docs/ROADMAP.md`](docs/ROADMAP.md)
+## 🛠️ টুলচেইন
 
-| Phase | লক্ষ্য | অবস্থা |
-|---|---|---|
-| **P0** | Language Engine + Compiler (VIR) + VM + CLI | ✅ **এই repo** |
-| P1 | ভাষা বড় করা: static typing, arrays, maps, error handling, modules | ⏳ |
-| P2 | নিজস্ব WASM backend + browser playground + নিজস্ব web editor | ⏳ |
-| P3 | নিজস্ব native backend (EXE/ELF) — LLVM optional | ⏳ |
-| P4 | Visual Design Engine + নিজস্ব UI render engine | ⏳ |
-| P5 | AI Engine (নিজের ভাষায় কথা বললেই কোড), Cloud build, Package manager | ⏳ |
-| P6 | Marketplace, Developer accounts, Admin center | ⏳ |
-
-## 📁 Project structure
-
+```bash
+vortexc debug file.vx   # step/breakpoint/stack/locals
+vortexc fmt file.vx -w  # formatter (idempotent)
+vortexc lint file.vx    # L001–L006
+vortexc test file.vx    # test_* ফাংশন + assert
 ```
-vortex-universal-toolchain/
-├── Cargo.toml          # কোনো dependency নেই
-├── src/
-│   ├── token.rs        # token সংজ্ঞা
-│   ├── keywords.rs     # multilingual keyword টেবিল
-│   ├── lexer.rs        # tokenizer (Unicode-aware)
-│   ├── parser.rs       # recursive-descent parser
-│   ├── ast.rs          # AST + pretty printer
-│   ├── compiler.rs     # AST → VIR (scope/slot allocation)
-│   ├── vir.rs          # VIR + টেক্সট serializer/parser
-│   ├── value.rs        # runtime values
-│   ├── vm.rs           # stack VM
-│   ├── lib.rs          # library entry
-│   └── main.rs         # CLI + REPL
-├── tests/e2e.rs        # ২৮টি end-to-end টেস্ট
-├── examples/           # ৬টি প্রোগ্রাম (English/অসমীয়া/বাংলা)
-└── docs/               # SPEC • VIR • ROADMAP
-```
+
+বিস্তারিত: [`docs/TOOLS.md`](docs/TOOLS.md)
+
+## 📚 ডকুমেন্টেশন
+
+- [`docs/SPEC.md`](docs/SPEC.md) — ভাষার পূর্ণ স্পেসিফিকেশন + ব্যাকরণ
+- [`docs/VIR.md`](docs/VIR.md) — bytecode instruction set
+- [`docs/WASM.md`](docs/WASM.md) — নিজস্ব WASM backend-এর ডিজাইন
+- [`docs/AI.md`](docs/AI.md) — AI engine
+- [`docs/PACKAGE_MANAGER.md`](docs/PACKAGE_MANAGER.md) — vpm
+- [`docs/TOOLS.md`](docs/TOOLS.md) — debugger/formatter/linter/test
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — ৩২ ক্যাটাগরির মাস্টার প্ল্যান
+- [`CHANGELOG.md`](CHANGELOG.md)
 
 ## 🧪 টেস্ট
 
 ```bash
-cargo test        # 28 tests
+cargo test --release   # ৬৪টি টেস্ট — lexer/parser/compiler/VM/AI/pkg/wasm/tools
 ```
 
----
+## 🗺️ পরের ধাপ
 
-© 2026 alihonab189-bit — VORTEX Universal Toolchain। সর্বস্বত্ব সংরক্ষিত।
+Phase 1-এর বাকি ভাষা-বৈশিষ্ট্য (structs/classes, generics, pattern matching),
+native backend (x86-64/ARM64 — Phase 3), নিজস্ব UI render engine + game
+engine (Phase 4), AI-র neural স্তর + নিজস্ব cloud (Phase 5) — পূর্ণ
+পরিকল্পনা [`docs/ROADMAP.md`](docs/ROADMAP.md)-তে।

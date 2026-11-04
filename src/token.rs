@@ -18,6 +18,8 @@ pub enum Tok {
     Return,
     True,
     False,
+    Break,
+    Continue,
     // Symbols
     Plus,
     Minus,
@@ -41,6 +43,10 @@ pub enum Tok {
     Comma,
     Semi,
     DotDot,
+    LBracket,
+    RBracket,
+    Colon,
+    Dot,
     Eof,
 }
 
@@ -69,6 +75,8 @@ impl Token {
             Tok::Return => "'return'".into(),
             Tok::True => "'true'".into(),
             Tok::False => "'false'".into(),
+            Tok::Break => "'break'".into(),
+            Tok::Continue => "'continue'".into(),
             Tok::Plus => "'+'".into(),
             Tok::Minus => "'-'".into(),
             Tok::Star => "'*'".into(),
@@ -91,6 +99,10 @@ impl Token {
             Tok::Comma => "','".into(),
             Tok::Semi => "';'".into(),
             Tok::DotDot => "'..'".into(),
+            Tok::LBracket => "'['".into(),
+            Tok::RBracket => "']'".into(),
+            Tok::Colon => "':'".into(),
+            Tok::Dot => "'.'".into(),
             Tok::Eof => "input-এর শেষ (end of input)".into(),
         }
     }
